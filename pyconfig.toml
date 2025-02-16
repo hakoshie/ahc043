@@ -14,7 +14,7 @@ out_dir = "./pahcer"
 compile_steps = []
 
 [[test.test_steps]]
-program = "python"
+program = "pypy3"
 args = ["./main.py"]
 stdin = "./tools/in/{SEED04}.txt"
 stdout = "./tools/out/{SEED04}.txt"
