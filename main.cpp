@@ -35,7 +35,7 @@ string get_direction(const pair<int,int>& p1, const pair<int,int>& p2) {
  
 // Dijkstra による最短経路探索（built, connections を考慮）
 vector<pair<int,int>> find_path(const pair<int,int>& start, const pair<int,int>& goal,
-    const unordered_map<pair<int,int>, vector<pair<int,int>>, pair_hash>& connections,
+    const unordered_map<pair<int,int>, set<pair<int,int>>, pair_hash>& connections,
     const vector<vector<int>>& built, int N, int COST_STATION, int COST_RAIL) {
     
     if (start == goal)
@@ -72,7 +72,8 @@ vector<pair<int,int>> find_path(const pair<int,int>& start, const pair<int,int>&
         // 4方向＋接続先（connections）
         vector<pair<int,int>> directions_t = directions;
         pair<int,int> key = {r, c};
-        if (connections.find(key) != connections.end() && !connections.at(key).empty()) {
+        auto it = connections.find(key);
+        if (it !=connections.end() and connections.at(key).size() > 0) {
             for (auto &conn : connections.at(key)) {
                 directions_t.push_back({conn.first - r, conn.second - c});
             }
@@ -101,7 +102,7 @@ vector<pair<int,int>> find_path(const pair<int,int>& start, const pair<int,int>&
 // 経路からコマンド列を生成する
 vector<string> generate_path_commands(const vector<pair<int,int>>& path, vector<vector<int>>& built,
       unordered_map<pair<int,int>, int, pair_hash>& used,
-      unordered_map<pair<int,int>, vector<pair<int,int>>, pair_hash>& connections, int N) {
+      unordered_map<pair<int,int>, set<pair<int,int>>, pair_hash>& connections, int N) {
     
     vector<string> cmds;
     int L = path.size();
@@ -132,15 +133,11 @@ vector<string> generate_path_commands(const vector<pair<int,int>>& path, vector<
         string d2 = get_direction(curP, nxtP);
         
         bool skip = false;
-        if (connections.find(curP) != connections.end()) {
-            for (auto &p: connections[curP]) {
-                if (p == nxtP) { skip = true; break; }
-            }
+        if (connections[curP].count(nxtP)){
+            skip = true;
         }
-        if (!skip && connections.find(prevP) != connections.end()) {
-            for (auto &p: connections[prevP]) {
-                if (p == curP) { skip = true; break; }
-            }
+        if(connections[prevP].count(curP)){
+            skip = true;
         }
         if (skip) continue;
         if (built[curP.first][curP.second] == 1){
@@ -170,7 +167,7 @@ vector<string> generate_path_commands(const vector<pair<int,int>>& path, vector<
  
 // detour 経路のコマンド群を取得する
 vector<string> get_detour_commands(const pair<int,int>& home, const pair<int,int>& work,
-      unordered_map<pair<int,int>, vector<pair<int,int>>, pair_hash>& connections,
+      unordered_map<pair<int,int>, set<pair<int,int>>, pair_hash>& connections,
       vector<vector<int>>& built, unordered_map<pair<int,int>, int, pair_hash>& used,
       int N, int COST_STATION, int COST_RAIL) {
     
@@ -222,7 +219,7 @@ int main(){
         // built: 0 = 更地, 1 = 駅, 2 = 線路
         vector<vector<int>> built(N, vector<int>(N, 0));
         unordered_map<pair<int,int>, int, pair_hash> used;
-        unordered_map<pair<int,int>, vector<pair<int,int>>, pair_hash> connections;
+        unordered_map<pair<int,int>, set<pair<int,int>>, pair_hash> connections;
  
         atcoder::dsu dsu(N * N);
  
@@ -405,8 +402,8 @@ int main(){
             if (pending.empty() && current_person_income != -1) {
                 connected_incomes += current_person_income;
                 dsu.merge(index(chosen_home, N), index(chosen_work, N));
-                connections[chosen_home].push_back(chosen_work);
-                connections[chosen_work].push_back(chosen_home);
+                connections[chosen_home].insert(chosen_work);
+                connections[chosen_work].insert(chosen_home);
                 current_person_income = -1;
             }
             funds += connected_incomes;
