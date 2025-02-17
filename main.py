@@ -178,7 +178,7 @@ def main():
     best_score = -float('inf')
     best_commands = []
     timeout=False
-    for _ in range(1000):  # 10回繰り返し
+    for trial in range(1000):  # 10回繰り返し
         funds = K
         # built: 0: 更地, 1: 駅, 2: 線路
         used=defaultdict(int) 
@@ -240,12 +240,12 @@ def main():
                     # turn_needed=0
                     if value < 0:
                         n=(remaining_turns - max(dist,rest_turns))
-                        delta=0.9999
+                        # delta=0.9999
                         # return (dist+1) * (1-delta**n)/(1-delta)
                         return (dist+1) * n
                     else:
                         return -dist
-                
+              
                 pep_t = sorted(pep_t, key=sort_key,reverse=True)
                 idx=0
               
