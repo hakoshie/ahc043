@@ -54,7 +54,8 @@ def main():
     def index(L):
         r,c=L
         return r*N+c
-    
+    def index_inv(i):
+        return i//N,i%N
     def find_path(start, goal,connections):
         sr, sc = start
         gr, gc = goal
@@ -96,7 +97,7 @@ def main():
                 if 0 <= nr < N and 0 <= nc < N:
                     # 移動コストを計算
                     if built[nr][nc] == 1:
-                        next_cost = cost
+                        next_cost = cost +50
                     elif built[nr][nc] == 2:
                         next_cost = cost + COST_STATION  # 線路はコスト5000
                     else:
@@ -177,7 +178,19 @@ def main():
         if path is None:
             return []
         return generate_path_commands(path)
-
+    def get_group_members(dsu, x):
+        leader_x = dsu.leader(x)
+        return [index_inv(i) for i in range(N*N) if dsu.leader(i) == leader_x]
+    def find_nearest_point(start, candidates):
+        """ start から最も近い点を candidates から探す """
+        min_dist = 1e9 # 0 で初期化
+        nearest = start
+        for r, c in candidates:
+            dist = manhattan(start, (r, c))
+            if dist < min_dist:
+                min_dist = dist
+                nearest = (r, c)
+        return nearest
     # ここからメイン処理
     best_score = -float('inf')
     best_commands = []
@@ -250,7 +263,31 @@ def main():
                         return (dist+1) * n
                     else:
                         return -dist
-              
+                delete_ids=[]
+                for i,(home,work) in enumerate(pep_t):
+                    home_stations=[]
+                    work_stations=[]
+                    for dx,dy in moves:
+                        nx,ny=home[0]+dx,home[1]+dy
+                        if 0 <= nx < N and 0 <= ny < N  and built[nx][ny]==1:
+                            home_stations.append((nx,ny))
+                    for dx,dy in moves:
+                        nx,ny=work[0]+dx,work[1]+dy
+                        if 0 <= nx < N and 0 <= ny < N  and built[nx][ny]==1:
+                            work_stations.append((nx,ny))
+                    exit=False
+                    for home_station in home_stations:
+                        for work_station in work_stations:
+                            if dsu.same(index(home_station),index(work_station)):
+                                delete_ids.append(i)
+                                exit=True
+                                break
+                        if exit:
+                            break
+                for i in delete_ids:
+                    connected_incomes+=sum(abs(pep_t[i][0][j] - pep_t[i][1][j]) for j in range(2))
+                pep_t=[pep_t[i] for i in range(len(pep_t)) if i not in delete_ids]
+
                 pep_t = sorted(pep_t, key=sort_key,reverse=True)
                 idx=0
               
@@ -314,16 +351,23 @@ def main():
                         connected_incomes+=current_person_income
                         current_person_income=None
                         continue
-                    if built[home[0]][home[1]]==1 and built[work[0]][work[1]]==1:
-                        min_dist=manhattan(home,work)
-                        home_tmp,work_tmp=home,work
-                        for r1,c1 in connections[home]:
-                            for r2,c2 in connections[work]:
-                                dist=manhattan((r1,c1),(r2,c2))
-                                if dist<min_dist:
-                                    min_dist=dist
-                                    home_tmp,work_tmp=(r1,c1),(r2,c2)
-                        home,work=home_tmp,work_tmp
+       # home, work の両方または片方が built に含まれる場合の処理
+                    if built[home[0]][home[1]] == 1 or built[work[0]][work[1]] == 1:
+                        if built[home[0]][home[1]] == 1 and built[work[0]][work[1]] == 1:
+                            # 両方が built に属する場合、最短距離を計算
+                            home_candidates = get_group_members(dsu, index(home))
+                            work_candidates = get_group_members(dsu, index(work))
+                            _, home, work = min(
+                                ((manhattan((r1, c1), (r2, c2)), (r1, c1), (r2, c2)))
+                                for r1, c1 in home_candidates
+                                for r2, c2 in work_candidates
+                            )
+                        else:
+                            # どちらか一方のみ built に属する場合
+                            if built[work[0]][work[1]] == 1:
+                                home, work = work, home  # 必ず built にあるものを home に統一
+                            home = find_nearest_point(work, get_group_members(dsu, index(home)))
+
                     cmds = get_detour_commands(home, work,connections)
                 else:
                     cmds = []
@@ -366,8 +410,7 @@ def main():
             if not pending and current_person_income is not None:
                 connected_incomes += current_person_income
                 dsu.merge(index(home),index(work))
-                connections[home].add(home)
-                connections[work].add(work)
+
                 connections[home].add(work)
                 connections[work].add(home)
                 current_person_income = None
