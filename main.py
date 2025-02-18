@@ -20,11 +20,14 @@ def main():
     T = int(next(it))  # ターン数
     
     people = []
+    points =set()
     for _ in range(M):
         r0 = int(next(it))
         c0 = int(next(it))
         r1 = int(next(it))
         c1 = int(next(it))
+        points.add((r0,c0))
+        points.add((r1,c1))
         people.append(((r0, c0), (r1, c1)))
     
     # 人をマンハッタン距離が大きい順にソート
@@ -86,7 +89,8 @@ def main():
             directions_t=directions.copy()
             if len(connections[(r,c)])>0:
                 for ri,ci in connections[(r,c)]:
-                    directions_t.append((ri-r,ci-c))
+                    if ri!=r or ci!=c:
+                        directions_t.append((ri-r,ci-c))
             for dr, dc in directions_t:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < N and 0 <= nc < N:
@@ -184,8 +188,8 @@ def main():
         used=defaultdict(int) 
         built = [[0] * N for _ in range(N)]
         output_commands = []
-        connections=defaultdict(list)
-
+        connections=defaultdict(set)
+        
         dsu=DSU(N*N)
         pep_t=people.copy()
         pep_t.sort(key=lambda x: sum(abs(x[0][i] - x[1][i]) for i in range(2)))
@@ -212,6 +216,7 @@ def main():
             if not pending and len(pep_t)>0:
 
                 def sort_key(x):
+                    # sort by the value of the person
                     home, work = x
                     station_exist=0
                     for dx,dy in moves:
@@ -236,7 +241,7 @@ def main():
                     if  connected_incomes == 0:
                         rest_turns=0 
                     else:
-                        rest_turns=(cost-funds)//connected_incomes
+                        rest_turns=max((cost-funds)//connected_incomes,0)
                     # turn_needed=0
                     if value < 0:
                         n=(remaining_turns - max(dist,rest_turns))
@@ -270,24 +275,55 @@ def main():
                             work=(nx,ny)
                             break
                     # 駅を置く場所をランダムに選ぶ
-                    while 1:
-                        if built[home[0]][home[1]]==1:
-                            break
-                        dx,dy=random.choice(moves)
-                        if 0 <= home[0]+dx < N and 0 <= home[1]+dy < N:
-                            home=(home[0]+dx,home[1]+dy)
-                            break
-                    while 1:
-                        if built[work[0]][work[1]]==1:
-                            break
-                        dx,dy=random.choice(moves)
-                        if 0 <= work[0]+dx < N and 0 <= work[1]+dy < N:
-                            work=(work[0]+dx,work[1]+dy)
-                            break
+                    
+                    if built[home[0]][home[1]]!=1:
+                        max_point_cnt=0
+                        max_home=None
+                        for dx,dy in moves:
+                            nx,ny=home[0]+dx,home[1]+dy
+                            point_cnt=0
+                            if 0 <= nx < N and 0 <= ny < N:
+                                for dx2,dy2 in moves:
+                                    nx2,ny2=nx+dx2,ny+dy2
+                                    if (nx2,ny2) in points:
+                                        point_cnt+=1
+                            if point_cnt>max_point_cnt:
+                                max_point_cnt=point_cnt
+                                max_home=(nx,ny)
+                        if max_home is not None:
+                            home=max_home   
+                                
+                    if built[work[0]][work[1]]!=1:
+                        max_point_cnt=0
+                        max_work=None   
+                        for dx,dy in moves:
+                            nx,ny=work[0]+dx,work[1]+dy
+                            point_cnt=0
+                            if 0 <= nx < N and 0 <= ny < N:
+                                for dx2,dy2 in moves:
+                                    nx2,ny2=nx+dx2,ny+dy2
+                                    if (nx2,ny2) in points:
+                                        point_cnt+=1
+                            if point_cnt>max_point_cnt:
+                                max_point_cnt=point_cnt
+                                max_work=(nx,ny)   
+                        if max_work is not None:
+                            work=max_work
+
                     if dsu.same(index(home),index(work)):
                         connected_incomes+=current_person_income
                         current_person_income=None
                         continue
+                    if built[home[0]][home[1]]==1 and built[work[0]][work[1]]==1:
+                        min_dist=manhattan(home,work)
+                        home_tmp,work_tmp=home,work
+                        for r1,c1 in connections[home]:
+                            for r2,c2 in connections[work]:
+                                dist=manhattan((r1,c1),(r2,c2))
+                                if dist<min_dist:
+                                    min_dist=dist
+                                    home_tmp,work_tmp=(r1,c1),(r2,c2)
+                        home,work=home_tmp,work_tmp
                     cmds = get_detour_commands(home, work,connections)
                 else:
                     cmds = []
@@ -330,8 +366,10 @@ def main():
             if not pending and current_person_income is not None:
                 connected_incomes += current_person_income
                 dsu.merge(index(home),index(work))
-                connections[home].append(work)
-                connections[work].append(home)
+                connections[home].add(home)
+                connections[work].add(work)
+                connections[home].add(work)
+                connections[work].add(home)
                 current_person_income = None
             funds += connected_incomes
         
