@@ -2,7 +2,6 @@ import sys
 import heapq
 from collections import deque
 from collections import defaultdict
-# timer start
 from atcoder.dsu import DSU
 import bisect
 import time
@@ -38,11 +37,7 @@ def main():
     COST_RAIL = 100      # 線路設置のコスト
 
     # マンハッタン距離2以内の(dx, dy)リスト
-    # moves = [
-    #     (1, 0), (-1, 0), (0, 1), (0, -1),  # 距離1
-    #     (2, 0), (-2, 0), (0, 2), (0, -2),  # 距離2 (縦横)
-    #     (1, 1), (-1, -1), (1, -1), (-1, 1) # 距離2 (斜め)
-    # ]
+
     moves = [
         (0, 0),
         (1, 0), (-1, 0), (0, 1), (0, -1),  # 距離1
@@ -53,25 +48,28 @@ def main():
         # マンハッタン距離を計算
         return abs(home[0] - work[0]) + abs(home[1] - work[1])
     def index(L):
+        # calculate index from (r,c)
         r,c=L
         return r*N+c
+    
     def index_inv(i):
+        # inverse calculation of index
         return i//N,i%N
+    
     def vacant_station(r, c, built):
+        # returns if there is a vacant area around the station
         dx=[0,1,0,-1]
         dy=[1,0,-1,0]
-        cnt=0
-        vacant=0
         for i in range(4):
             nx,ny=r+dx[i],c+dy[i]
             if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==0:
                 return True 
         return False
     def find_path(start, goal,connections,dsu):
+        # dijkstra で最短経路を探索
         sr, sc = start
         gr, gc = goal
 
-        # dijkstra で最短経路を探索
         if start == goal:
             return [start]
         
@@ -174,20 +172,19 @@ def main():
             #     continue
             if built[cur[0]][cur[1]] == 1:
                 dsu.merge(index((start)),index(cur))
-                for group in dsu.groups():
-                    connections[dsu.leader(group[0])]=group
+                # for group in dsu.groups():
+                #     connections[dsu.leader(group[0])]=group
                 # dsu.merge(index((goal)),index(cur))
-                # connections[goal].add(cur)
-                # connections[cur].add((goal))
-                # connections[start].add(cur)
-                # connections[cur].add((start))
+   
                 continue
             if d1 == d2:
+                # 縦横の直線方向
                 if d1 in ("left", "right"):
                     cmds.append(f"1 {cur[0]} {cur[1]}")  # 線路設置
                 else:
                     cmds.append(f"2 {cur[0]} {cur[1]}")  # 縦方向の線路
             else:
+                # カーブ
                 cmds.append(f"{turning_map[(d1, d2)]} {cur[0]} {cur[1]}")  # 方向転換のコマンド
         r, c = path[-1]
         if built[r][c] != 1:
@@ -195,18 +192,20 @@ def main():
         return cmds
 
     def get_detour_commands(home, work,connections,dsu):
+        # 経路探索してコマンドを生成
         path = find_path(home, work,connections,dsu)
-        # print(f"path: {path}")
         if path is None:
             return []
         return generate_path_commands(path,connections,dsu)
     def pep2points(pep):
+        # return points from people
         points=set()
         for p in pep:
             points.add(p[0])
             points.add(p[1])
         return points
     def get_group_members(dsu, x,stations):
+        # return members of the group in the dsu
         leader_x = dsu.leader(x)
         return [station for station in stations if dsu.leader(index(station)) == leader_x]
     def find_nearest_point(start, candidates):
@@ -219,14 +218,15 @@ def main():
                 min_dist = dist
                 nearest = (r, c)
         return nearest
+    
     # ここからメイン処理
     best_score = -float('inf')
     best_commands = []
     timeout=False
-    for trial in range(1000):  # 10回繰り返し
+    for _ in range(1000):  
         funds = K
+        # used=defaultdict(int) 
         # built: 0: 更地, 1: 駅, 2: 線路
-        used=defaultdict(int) 
         built = [[0] * N for _ in range(N)]
         output_commands = []
         connections=defaultdict(set)
@@ -234,10 +234,9 @@ def main():
         dsu=DSU(N*N)
         for group in dsu.groups():
             connections[dsu.leader(group[0])]=group
+
         pep_t=people.copy()
         pep_t.sort(key=lambda x: sum(abs(x[0][i] - x[1][i]) for i in range(2)))
-
-
         
         pending = []
         current_person_income = None
@@ -283,12 +282,16 @@ def main():
                     station_exist+=1 if len(work_stations) else 0
                     cost=dist * 100 + 10000-station_exist*5000
                     for home_station in home_stations:
+                        exit=False
                         for work_station in work_stations: 
                             dist_t = sum(abs(home_station[i] - work_station[i]) for i in range(2))-1
                             cost = min(cost,dist_t * 100 + 10000-station_exist*5000)
-                            if dsu.same(index(home),index(work)):
+                            if dsu.same(index(home_station),index(work_station)):
                                 cost=0
-                                
+                                exit=True
+                                break
+                        if exit:
+                            break
                     remaining_turns = T - turn - 1
                     value = cost - funds - connected_incomes * remaining_turns
                     rest_turns=0
@@ -299,9 +302,7 @@ def main():
                     # turn_needed=0
                     if value < 0:
                         n=(remaining_turns - max(dist,rest_turns))
-                        # delta=0.9999
-                        # return (dist+1) * (1-delta**n)/(1-delta)
-                        return (dist+1) * n
+                        return (dist+1) * n/(cost+1)
                     else:
                         return -dist
                 delete_ids=[]
