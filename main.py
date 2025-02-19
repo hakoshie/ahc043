@@ -7,6 +7,7 @@ from atcoder.dsu import DSU
 import bisect
 import time
 import random
+import math
 start = time.time()
 def main():
     # データの読み込み
@@ -20,14 +21,14 @@ def main():
     T = int(next(it))  # ターン数
     
     people = []
-    points =set()
+    # points =set()
     for _ in range(M):
         r0 = int(next(it))
         c0 = int(next(it))
         r1 = int(next(it))
         c1 = int(next(it))
-        points.add((r0,c0))
-        points.add((r1,c1))
+        # points.add((r0,c0))
+        # points.add((r1,c1))
         people.append(((r0, c0), (r1, c1)))
     
     # 人をマンハッタン距離が大きい順にソート
@@ -56,7 +57,17 @@ def main():
         return r*N+c
     def index_inv(i):
         return i//N,i%N
-    def find_path(start, goal,connections):
+    def vacant_station(r, c, built):
+        dx=[0,1,0,-1]
+        dy=[1,0,-1,0]
+        cnt=0
+        vacant=0
+        for i in range(4):
+            nx,ny=r+dx[i],c+dy[i]
+            if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==0:
+                return True 
+        return False
+    def find_path(start, goal,connections,dsu):
         sr, sc = start
         gr, gc = goal
 
@@ -88,16 +99,19 @@ def main():
             
             # 4方向の移動
             directions_t=directions.copy()
-            if len(connections[(r,c)])>0:
-                for ri,ci in connections[(r,c)]:
-                    if ri!=r or ci!=c:
-                        directions_t.append((ri-r,ci-c))
+            
+            # if len(connections[(r,c)])>0:
+            # connections_rc=get_group_members(dsu,index((r,c)),stations)
+            for id in connections[dsu.leader(index((r,c)))]:
+                ri,ci=index_inv(id)
+                if ri!=r or ci!=c:
+                    directions_t.append((ri-r,ci-c))
             for dr, dc in directions_t:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < N and 0 <= nc < N:
                     # 移動コストを計算
                     if built[nr][nc] == 1:
-                        next_cost = cost +50
+                        next_cost = cost
                     elif built[nr][nc] == 2:
                         next_cost = cost + COST_STATION  # 線路はコスト5000
                     else:
@@ -125,15 +139,15 @@ def main():
             return "left"
         return None
 
-    def generate_path_commands(path):
+    def generate_path_commands(path,connections,dsu):
         # パスからコマンドを生成
         cmds = []
         L = len(path)
+        start,goal=path[0],path[-1]
         r, c = path[0]
 
         if built[r][c] != 1:
             cmds.append(f"0 {r} {c}")  # 駅設置
-        used[(r,c)]+=1 
         turning_map = {
             ("up", "right"): 6,
             ("right", "up"): 4,
@@ -154,10 +168,19 @@ def main():
             # print(f"d1: {d1}, d2: {d2} prev: {prev} cur: {cur} nxt: {nxt}")
             # print(f"cur in connections[prev]: {cur in connections[prev]}")
             # print(f"nxt in connections[cur]: {nxt in connections[cur]}")
-
-            if nxt in connections[cur] or cur in connections[prev]:
-                continue
+            # connections_cur=get_group_members(dsu,index(cur),stations)
+            # connections_prev=get_group_members(dsu,index(prev),stations)
+            # if nxt in connections[dsu.leader(index(cur))] or cur in connections[dsu.leader(index(prev))]:
+            #     continue
             if built[cur[0]][cur[1]] == 1:
+                dsu.merge(index((start)),index(cur))
+                for group in dsu.groups():
+                    connections[dsu.leader(group[0])]=group
+                # dsu.merge(index((goal)),index(cur))
+                # connections[goal].add(cur)
+                # connections[cur].add((goal))
+                # connections[start].add(cur)
+                # connections[cur].add((start))
                 continue
             if d1 == d2:
                 if d1 in ("left", "right"):
@@ -169,18 +192,23 @@ def main():
         r, c = path[-1]
         if built[r][c] != 1:
             cmds.append(f"0 {r} {c}")  # 駅設置
-        used[(r,c)]+=1
         return cmds
 
-    def get_detour_commands(home, work,connections):
-        path = find_path(home, work,connections)
+    def get_detour_commands(home, work,connections,dsu):
+        path = find_path(home, work,connections,dsu)
         # print(f"path: {path}")
         if path is None:
             return []
-        return generate_path_commands(path)
-    def get_group_members(dsu, x):
+        return generate_path_commands(path,connections,dsu)
+    def pep2points(pep):
+        points=set()
+        for p in pep:
+            points.add(p[0])
+            points.add(p[1])
+        return points
+    def get_group_members(dsu, x,stations):
         leader_x = dsu.leader(x)
-        return [index_inv(i) for i in range(N*N) if dsu.leader(i) == leader_x]
+        return [station for station in stations if dsu.leader(index(station)) == leader_x]
     def find_nearest_point(start, candidates):
         """ start から最も近い点を candidates から探す """
         min_dist = 1e9 # 0 で初期化
@@ -202,8 +230,10 @@ def main():
         built = [[0] * N for _ in range(N)]
         output_commands = []
         connections=defaultdict(set)
-        
+        stations=set()
         dsu=DSU(N*N)
+        for group in dsu.groups():
+            connections[dsu.leader(group[0])]=group
         pep_t=people.copy()
         pep_t.sort(key=lambda x: sum(abs(x[0][i] - x[1][i]) for i in range(2)))
 
@@ -231,30 +261,41 @@ def main():
                 def sort_key(x):
                     # sort by the value of the person
                     home, work = x
+                    dist=sum(abs(home[i] - work[i]) for i in range(2))-1                
                     station_exist=0
+                    home_stations=[]
+                    work_stations=[]
                     for dx,dy in moves:
                         nx,ny=home[0]+dx,home[1]+dy
-                        if 0 <= nx < N and 0 <= ny < N and used[(nx,ny)]<4 and built[nx][ny]==1:
-                            station_exist+=1
-                            home=(nx,ny)
-                            break
+                        if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==1:
+                            home_stations.append((nx,ny))
+                            # station_exist+=1
+                            # home=(nx,ny)
+                            # break
                     for dx,dy in moves:
                         nx,ny=work[0]+dx,work[1]+dy
-                        if 0 <= nx < N and 0 <= ny < N and used[(nx,ny)]<4 and built[nx][ny]==1:
-                            station_exist+=1
-                            work=(nx,ny)
-                            break
-                    dist = sum(abs(home[i] - work[i]) for i in range(2))-1
+                        if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==1:
+                            work_stations.append((nx,ny))
+                            # station_exist+=1
+                            # work=(nx,ny)
+                            # break
+                    station_exist+=1 if len(home_stations) else 0
+                    station_exist+=1 if len(work_stations) else 0
+                    cost=dist * 100 + 10000-station_exist*5000
+                    for home_station in home_stations:
+                        for work_station in work_stations: 
+                            dist_t = sum(abs(home_station[i] - work_station[i]) for i in range(2))-1
+                            cost = min(cost,dist_t * 100 + 10000-station_exist*5000)
+                            if dsu.same(index(home),index(work)):
+                                cost=0
+                                
                     remaining_turns = T - turn - 1
-                    cost = dist * 100 + 10000-station_exist*5000
-                    if dsu.same(index(home),index(work)):
-                        cost=0
                     value = cost - funds - connected_incomes * remaining_turns
                     rest_turns=0
                     if  connected_incomes == 0:
                         rest_turns=0 
                     else:
-                        rest_turns=max((cost-funds)//connected_incomes,0)
+                        rest_turns=max(math.ceil((cost-funds)/connected_incomes),0)
                     # turn_needed=0
                     if value < 0:
                         n=(remaining_turns - max(dist,rest_turns))
@@ -303,16 +344,16 @@ def main():
                     # 近くにbuiltされた駅があるか探す
                     for dx,dy in moves:
                         nx,ny=home[0]+dx,home[1]+dy
-                        if 0 <= nx < N and 0 <= ny < N and used[(nx,ny)]<4 and built[nx][ny]==1:
+                        if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==1 and vacant_station(nx,ny,built):
                             home=(nx,ny)
                             break
                     for dx,dy in moves:
                         nx,ny=work[0]+dx,work[1]+dy
-                        if 0 <= nx < N and 0 <= ny < N and used[(nx,ny)]<4 and built[nx][ny]==1:
+                        if 0 <= nx < N and 0 <= ny < N and built[nx][ny]==1 and vacant_station(nx,ny,built):
                             work=(nx,ny)
                             break
                     # 駅を置く場所をランダムに選ぶ
-                    
+                    points=pep2points(pep_t) 
                     if built[home[0]][home[1]]!=1:
                         max_point_cnt=0
                         max_home=None
@@ -355,8 +396,8 @@ def main():
                     if built[home[0]][home[1]] == 1 or built[work[0]][work[1]] == 1:
                         if built[home[0]][home[1]] == 1 and built[work[0]][work[1]] == 1:
                             # 両方が built に属する場合、最短距離を計算
-                            home_candidates = get_group_members(dsu, index(home))
-                            work_candidates = get_group_members(dsu, index(work))
+                            home_candidates = get_group_members(dsu, index(home),stations)
+                            work_candidates = get_group_members(dsu, index(work),stations)
                             _, home, work = min(
                                 ((manhattan((r1, c1), (r2, c2)), (r1, c1), (r2, c2)))
                                 for r1, c1 in home_candidates
@@ -366,9 +407,9 @@ def main():
                             # どちらか一方のみ built に属する場合
                             if built[work[0]][work[1]] == 1:
                                 home, work = work, home  # 必ず built にあるものを home に統一
-                            home = find_nearest_point(work, get_group_members(dsu, index(home)))
+                            home = find_nearest_point(work, get_group_members(dsu, index(home),stations))
 
-                    cmds = get_detour_commands(home, work,connections)
+                    cmds = get_detour_commands(home, work,connections,dsu)
                 else:
                     cmds = []
                 if cmds:
@@ -396,6 +437,7 @@ def main():
                 
                 if built[r][c]!=1 and funds >= cost:
                     if cmd_type == "0":
+                        stations.add((r, c))
                         built[r][c] = 1  # 駅設置
                     else:
                         built[r][c] = 2  # 線路設置
@@ -411,8 +453,10 @@ def main():
                 connected_incomes += current_person_income
                 dsu.merge(index(home),index(work))
 
-                connections[home].add(work)
-                connections[work].add(home)
+                # connections[home].add(work)
+                # connections[work].add(home)
+                for group in dsu.groups():
+                    connections[dsu.leader(group[0])]=group
                 current_person_income = None
             funds += connected_incomes
         
