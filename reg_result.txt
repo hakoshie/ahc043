@@ -1,0 +1,36 @@
+
+Correlation Matrix:
+	manhat	actual	ratio	turn	stations
+manhat	1.000	0.366	-0.200	-0.385	-0.299
+actual	0.366	1.000	0.554	-0.141	-0.049
+ratio	-0.200	0.554	1.000	0.120	0.183
+turn	-0.385	-0.141	0.120	1.000	0.617
+stations	-0.299	-0.049	0.183	0.617	1.000
+
+Linear Regression (actual - manhat -> turn, stations, manhat, turn^2):
+                                 OLS Regression Results                                
+=======================================================================================
+Dep. Variable:                      y   R-squared (uncentered):                   0.491
+Model:                            OLS   Adj. R-squared (uncentered):              0.491
+Method:                 Least Squares   F-statistic:                          1.983e+04
+Date:                Fri, 21 Feb 2025   Prob (F-statistic):                        0.00
+Time:                        00:15:38   Log-Likelihood:                     -1.7867e+05
+No. Observations:               41098   AIC:                                  3.573e+05
+Df Residuals:                   41096   BIC:                                  3.574e+05
+Df Model:                           2                                                  
+Covariance Type:            nonrobust                                                  
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+x1             1.5736      0.011    140.176      0.000       1.552       1.596
+x2            -0.0152      0.000    -70.235      0.000      -0.016      -0.015
+==============================================================================
+Omnibus:                    19000.531   Durbin-Watson:                   1.837
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):            96349.125
+Skew:                           2.256   Prob(JB):                         0.00
+Kurtosis:                       8.992   Cond. No.                         127.
+==============================================================================
+
+Notes:
+[1] R² is computed without centering (uncentered) since the model does not contain a constant.
+[2] Standard Errors assume that the covariance matrix of the errors is correctly specified.

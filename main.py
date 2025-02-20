@@ -62,7 +62,7 @@ def vacant_station(r, c, built, N):
     return False
 
 
-def find_path(start, goal, connections, dsu, N, built, COST_STATION, COST_RAIL):
+def find_path(start, goal, connections, dsu, N, built, COST_STATION, COST_RAIL, turn,stations, ret_dist=False):
     """
     始点から終点までの最短経路を、コスト付きダイクストラ法により探索する。
     built の値に応じて移動コストを設定。
@@ -86,6 +86,9 @@ def find_path(start, goal, connections, dsu, N, built, COST_STATION, COST_RAIL):
         cost, (r, c) = heapq.heappop(pq)
         
         if (r, c) == goal:
+            if ret_dist:
+                return dist[r][c]
+            # print(f"manhat: {manhattan(start,goal)} actual:{dist[r][c]/100} ratio:{dist[r][c]/100/manhattan(start,goal):.3f} turn:{turn} stations:{len(stations)}")    
             # 経路を復元する
             path = []
             while (r, c) != (sr, sc):
@@ -166,6 +169,10 @@ def generate_path_commands(path, connections, dsu, N, built, COST_STATION):
         if built[cur_pt[0]][cur_pt[1]] == 1:
             dsu.merge(index(start, N), index(cur_pt, N))
             continue
+        if built[cur_pt[0]][cur_pt[1]]==2:
+            cmds.append(f"0 {cur_pt[0]} {cur_pt[1]}")
+            dsu.merge(index(start, N), index(cur_pt, N))
+            continue
         if d1 == d2:
             if d1 in ("left", "right"):
                 cmds.append(f"1 {cur_pt[0]} {cur_pt[1]}")
@@ -179,11 +186,11 @@ def generate_path_commands(path, connections, dsu, N, built, COST_STATION):
     return cmds
 
 
-def get_detour_commands(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL):
+def get_detour_commands(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL,turn,stations):
     """
     指定された home から work への迂回経路のコマンド列を取得する
     """
-    path = find_path(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL)
+    path = find_path(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL,turn,stations)
     if path is None:
         return []
     return generate_path_commands(path, connections, dsu, N, built, COST_STATION)
@@ -277,8 +284,9 @@ def main():
             if not pending and len(pep_t) > 0:
                 def sort_key(x):
                     home_x, work_x = x
-                    dist = sum(abs(home_x[i] - work_x[i]) for i in range(2)) - 1
+                    dist_m = sum(abs(home_x[i] - work_x[i]) for i in range(2)) - 1
                     station_exist = 0
+                    # 付近の駅を探索
                     home_stations = []
                     work_stations = []
                     for dx, dy in moves:
@@ -291,11 +299,16 @@ def main():
                             work_stations.append((nx, ny))
                     station_exist += 1 if home_stations else 0
                     station_exist += 1 if work_stations else 0
+                    home_x=random.choice(home_stations) if home_stations else home_x
+                    work_x=random.choice(work_stations) if work_stations else work_x
+                    # dist=find_path(home_x,work_x,connections,dsu,N,built,COST_STATION,COST_RAIL,ret_dist=True)
+                    dist= dist_m
                     cost = dist * 100 + 10000 - station_exist * 5000
                     for home_station in home_stations:
                         exit_flag = False
                         for work_station in work_stations:
                             dist_t = sum(abs(home_station[i] - work_station[i]) for i in range(2)) - 1
+                            # dist_t=find_path(home_station,work_station,connections,dsu,N,built,COST_STATION,COST_RAIL,ret_dist=True)
                             cost = min(cost, dist_t * 100 + 10000 - station_exist * 5000)
                             if dsu.same(index(home_station, N), index(work_station, N)):
                                 cost = 0
@@ -304,13 +317,13 @@ def main():
                         if exit_flag:
                             break
                     remaining_turns = T - turn - 1
-                    value = cost - funds - connected_incomes * remaining_turns
+                    reachable =  funds + connected_incomes * remaining_turns -cost
                     rest_turns = 0 if connected_incomes == 0 else max(math.ceil((cost - funds) / connected_incomes), 0)
-                    if value < 0:
-                        n = (remaining_turns - max(dist, rest_turns))
-                        return (dist + 1) * n / (cost + 1)
+                    if reachable > 0:
+                        n = (remaining_turns - max(dist_m, rest_turns))
+                        return (dist_m + 1) * n / (cost + 1)
                     else:
-                        return -(dist + 1)
+                        return -(dist_m + 1)
 
                 delete_ids = []
                 for i, (home_x, work_x) in enumerate(pep_t):
@@ -425,7 +438,7 @@ def main():
                                 home, work = work, home
                             home = find_nearest_point(work, get_group_members(dsu, index(home, N), stations, N))
                     
-                    cmds = get_detour_commands(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL)
+                    cmds = get_detour_commands(home, work, connections, dsu, N, built, COST_STATION, COST_RAIL,turn,stations)
                 else:
                     cmds = []
                 if cmds:
