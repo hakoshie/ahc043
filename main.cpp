@@ -17,7 +17,12 @@ using namespace std;
 using ll = long long;
 using pii = pair<int, int>;
 using pll = pair<ll, ll>;
+#define rep(i, n) for (int i = 0; i < (int)(n); i++)
+#define FOR(i, a, b) for (int i = (int)(a); i < (int)(b); i++)
+#define all(x) (x).begin(), (x).end()
 
+template <class T> bool chmax(T &a, const T &b) { if (a < b) { a = b; return true; } return false; }
+template <class T> bool chmin(T &a, const T &b) { if (a > b) { a = b; return true; } return false; }
 // Global variables for time measurement
 auto start_time = chrono::high_resolution_clock::now();
 const double TIME_LIMIT = 2.9; // Time limit in seconds
@@ -62,7 +67,7 @@ bool vacant_station(int r, int c, const vector<vector<int>>& built) {
     return false;
 }
 
-vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built) {
+vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
     if (start == goal) {
         return {start};
     }
@@ -87,6 +92,7 @@ vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections
         pq.pop();
 
         if (curr == goal) {
+            cout<<"#final cost "<<cost<<endl;
             // Reconstruct the path
             vector<pii> path;
             pii r = curr;
@@ -119,16 +125,37 @@ vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections
                 double next_cost = cost;
                 if (built[nr][nc] == 7) {
                     // No additional cost for existing stations
+                    if(turn==0)
+                    cout<<"#visited station"<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<" dist:"<<dist[nr][nc]<<endl;
                 } else if (built[nr][nc] >=1 and built[nr][nc] <= 6) {
-                    if(dir==(pii){-1,0} and (built[nr][nc]==1 or built[nr][nc]==5 or built[nr][nc]==6) and (built[curr.first][curr.second]==1 or built[curr.first][curr.second]==3 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==7 or built[curr.first][curr.second]==0)){
-                        
-                    }else if(dir==(pii){1,0} and (built[nr][nc]==1
-                    or built[nr][nc]==3 or built[nr][nc]==4) and (built[curr.first][curr.second]==1 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==6 or built[curr.first][curr.second]==7 or built[curr.first][curr.second]==0)){
-                        
-                    }else if(dir==(pii){0,-1} and (built[nr][nc]==2 or built[nr][nc]==4 or built[nr][nc]==5)and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==3 or built[curr.first][curr.second]==6 or built[curr.first][curr.second]==7 or built[curr.first][curr.second]==0)){
-                        
-                    }else if(dir==(pii){0,1} and (built[nr][nc]==2 or built[nr][nc]==3 or built[nr][nc]==6) and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==7 or built[curr.first][curr.second]==0)){
-                        
+                    int COST_USED_RAIL = 5000;
+                    if(dir==(pii){-1,0} and (built[nr][nc]==2 or built[nr][nc]==3 or built[nr][nc]==6) and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==7)){
+                        if(built[curr.first][curr.second]==7 or built[nr][nc]==7){
+                            next_cost+=COST_STATION;
+                        }else{
+                            next_cost+=COST_USED_RAIL;
+                        }
+                        // cout<<"# y up "<<curr.first<<" "<<curr.second<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<endl;
+                    }else if(dir==(pii){1,0} and (built[nr][nc]==2
+                    or built[nr][nc]==4 or built[nr][nc]==5) and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==3 or built[curr.first][curr.second]==6 or built[curr.first][curr.second]==7)){
+                        if(built[curr.first][curr.second]==7 or built[nr][nc]==7){
+                            next_cost+=COST_STATION;
+                        }else{
+                            next_cost+=COST_USED_RAIL;
+                        }
+                        // cout<<"# y down "<<curr.first<<" "<<curr.second<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<endl;
+                    }else if(dir==(pii){0,-1} and (built[nr][nc]==1 or built[nr][nc]==5 or built[nr][nc]==6)and (built[curr.first][curr.second]==1 or built[curr.first][curr.second]==3 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==7)){
+                        if(built[curr.first][curr.second]==7 or built[nr][nc]==7){
+                            next_cost+=COST_STATION;
+                        }else{
+                            next_cost+=COST_USED_RAIL;
+                        }
+                    }else if(dir==(pii){0,1} and (built[nr][nc]==1 or built[nr][nc]==3 or built[nr][nc]==4) and (built[curr.first][curr.second]==1 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==6 or built[curr.first][curr.second]==7)){
+                        if(built[curr.first][curr.second]==7 or built[nr][nc]==7){
+                            next_cost+=COST_STATION;
+                        }else{
+                            next_cost+=COST_USED_RAIL;
+                        }
                     }else{
                         next_cost += COST_STATION;
                     }
@@ -214,8 +241,8 @@ vector<string> generate_path_commands(const vector<pii>& path, map<int, set<int>
     return cmds;
 }
 
-vector<string> get_detour_commands(pii home, pii work, map<int, set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
-    vector<pii> path = find_path(home, work, connections, dsu, built);
+vector<string> get_detour_commands(pii home, pii work, map<int, set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
+    vector<pii> path = find_path(home, work, connections, dsu, built,sim);
     if (path.empty()) {
         return {};
     }
@@ -254,7 +281,21 @@ pii find_nearest_point(pii start, const vector<pii>& candidates) {
     }
     return nearest;
 }
+int weighted_random(int n) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
+    // 逆数の重みを計算
+    std::vector<double> weights(n);
+    for (int i = 0; i < n; ++i) {
+        weights[i] = 1.0 / (i + 1);
+    }
+
+    // 重みに基づいて乱数を生成
+    std::discrete_distribution<int> dist(weights.begin(), weights.end());
+
+    return dist(gen) ; // 1-indexed にする
+}
 int main() {
     int M, K, T;
     cin >> N >> M >> K >> T;
@@ -283,6 +324,7 @@ int main() {
 
     long long best_score = -numeric_limits<long long>::max();
     vector<string> best_commands;
+    int best_trial=0;
     bool timeout = false;
 
     mt19937 rng(0); // Seed the random number generator
@@ -323,13 +365,14 @@ int main() {
                     output_commands_tmp.push_back("-1");
                 }
                 best_score = funds_tmp;
+                best_trial = sim;
                 best_commands = output_commands_tmp;
             }
 
             if (pending.empty() && !pep_t.empty()) {
 
                 auto sort_key = [&](const Person& x) {
-                    int dist = manhattan(x.home, x.work) - 1;
+                    int dist_m = manhattan(x.home, x.work) - 1;
                     int station_exist = 0;
 
                     vector<pii> home_stations;
@@ -348,6 +391,15 @@ int main() {
                     }
                     station_exist += !home_stations.empty();
                     station_exist += !work_stations.empty();
+                    int manhat1=1e9,manhat2=1e9;
+                    for(auto st:stations){
+                        chmin(manhat1,manhattan(st,x.home));
+                        chmin(manhat2,manhattan(st,x.work));
+                    }
+                    int dist=dist_m;
+                    if(stations.size()>=5){
+                        chmin(dist,manhat1+manhat2);
+                    }
                     int cost = dist * 100 + 10000 - station_exist * 5000;
 
                     for (auto home_station : home_stations) {
@@ -369,10 +421,10 @@ int main() {
 
                     int rest_turns = connected_incomes == 0 ? 0 : max((int)ceil(((double)cost - funds) / connected_incomes), 0);
                     if (value < 0) {
-                        int n = remaining_turns - max(dist, rest_turns);
-                        return (double)(dist + 1) * n / ((double)cost + 1);
+                        int n = remaining_turns - max(dist_m, rest_turns);
+                        return (double)(dist_m + 1) * n / ((double)cost + 1);
                     } else {
-                        return (double)-(dist + 1);
+                        return (double)-(dist_m + 1);
                     }
                 };
 
@@ -426,7 +478,8 @@ int main() {
 
                 int idx = 0;
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
-                    idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 10));
+                    // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
+                    idx = weighted_random(min((int)pep_t.size(), 20));
                 }
 
                 if (idx < pep_t.size()) {
@@ -439,13 +492,13 @@ int main() {
                     vector<pii> works;
                     for (auto [dx, dy] : moves) {
                         int nx = home.first + dx, ny = home.second + dy;
-                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 && vacant_station(nx, ny, built)) {
+                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
                             homes.push_back({nx, ny});
                         }
                     }
                     for (auto [dx, dy] : moves) {
                         int nx = work.first + dx, ny = work.second + dy;
-                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 && vacant_station(nx, ny, built)) {
+                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
                             works.push_back({nx, ny});
                         }
                     }
@@ -531,8 +584,9 @@ int main() {
                             home = find_nearest_point(work, get_group_members(dsu, index(home), stations));
                         }
                     }
-
-                    pending = get_detour_commands(home, work, connections, dsu, built);
+                    cout<<"#trial:"<<sim<<" turn:"<<turn<<" home: ("<<home.first<<", "<<home.second<<") ";
+                    cout<<"work: ("<<work.first<<", "<<work.second<<")"<<endl;
+                    pending = get_detour_commands(home, work, connections, dsu, built,sim);
                 } else {
                     pending = {};
                 }
@@ -563,6 +617,9 @@ int main() {
                     cost = COST_RAIL;
                 } else if (built[r][c] <=6) {
                     if(cmd_type[0]-'0'==built[r][c]){
+                        // cout<<"came here"<<endl;
+                        // cout<<cmd_type[0]<<endl;
+                        // cout<<built[r][c]<<endl;
                         cost = 0;
                         skip=true;
                     }else{
@@ -576,6 +633,8 @@ int main() {
                     if (cmd_type == "0") {
                         stations.insert({r, c});
                         built[r][c] = 7;
+                        dsu.merge(index({r, c}), index(home));
+                        dsu.merge(index({r, c}), index(work));
                     } else {
                         built[r][c] = cmd_type[0] - '0';
                     }
@@ -599,17 +658,17 @@ int main() {
                 for (int i = 0; i < N * N; ++i) {
                     connections[dsu.leader(i)].insert(i);
                 }
-                for(auto station : stations){
-                    int dx[4]={0,1,0,-1};
-                    int dy[4]={1,0,-1,0};
-                    for(int i=0;i<4;i++){
-                        int nx = station.first + dx[i];
-                        int ny = station.second + dy[i];
-                        if(0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7){
-                            dsu.merge(index(station), index({nx,ny}));
-                        }
-                    }
-                }
+                // for(auto station : stations){
+                //     int dx[4]={0,1,0,-1};
+                //     int dy[4]={1,0,-1,0};
+                //     for(int i=0;i<4;i++){
+                //         int nx = station.first + dx[i];
+                //         int ny = station.second + dy[i];
+                //         if(0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7){
+                //             dsu.merge(index(station), index({nx,ny}));
+                //         }
+                //     }
+                // }
                 current_person_income = 0;
             }
             funds += connected_incomes;
@@ -617,10 +676,12 @@ int main() {
         if (funds > best_score) {
             best_score = funds;
             best_commands = output_commands;
+            best_trial = sim;
         }
         if (timeout) break;
     }
-
+    cout<<"# best_trial: "<<best_trial<<endl;
+    
     for (int i = 0; i < T; ++i) {
         cout << best_commands[i] << endl;
     }

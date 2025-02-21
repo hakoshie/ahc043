@@ -6,3 +6,6 @@
 - 接続している駅同士はコストゼロで移動できるよね
 - 駅の位置をばらつかせるときに、含む点の数を最大化したいかも
 - startとgoalのconnectionsの中でmanhattanが最小の組み合わせを見つけるとか、というかfind_pathあたりにバグがあるかもしれない
+- 総スコアが高いよりも平均が強いまたは、relativeが強いほうがスコアが高い
+- distの近似値としてnearest stationとのmanhatの和にする
+- stationsはvectorでよくね
