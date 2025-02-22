@@ -9,3 +9,5 @@
 - 総スコアが高いよりも平均が強いまたは、relativeが強いほうがスコアが高い
 - distの近似値としてnearest stationとのmanhatの和にする
 - stationsはvectorでよくね
+- 場所の新規性も重要かもしれないね、sort keyで
+- なんで実行時間が遅くなるんだろうね <- coutしてただけだったわ

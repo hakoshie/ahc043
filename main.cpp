@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <random>
 #include <cmath>
 #include <chrono>
@@ -67,7 +68,14 @@ bool vacant_station(int r, int c, const vector<vector<int>>& built) {
     return false;
 }
 
-vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
+// Custom hash function for pii
+struct PairHash {
+    size_t operator()(const pii& p) const {
+        return (hash<int>()(p.first) << 1) ^ hash<int>()(p.second);
+    }
+};
+
+vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
     if (start == goal) {
         return {start};
     }
@@ -125,8 +133,8 @@ vector<pii> find_path(pii start, pii goal, const map<int, set<int>>& connections
                 double next_cost = cost;
                 if (built[nr][nc] == 7) {
                     // No additional cost for existing stations
-                    if(turn==0)
-                    cout<<"#visited station"<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<" dist:"<<dist[nr][nc]<<endl;
+                    // if(turn==0)
+                    // cout<<"#visited station"<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<" dist:"<<dist[nr][nc]<<endl;
                 } else if (built[nr][nc] >=1 and built[nr][nc] <= 6) {
                     int COST_USED_RAIL = 5000;
                     if(dir==(pii){-1,0} and (built[nr][nc]==2 or built[nr][nc]==3 or built[nr][nc]==6) and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==7)){
@@ -186,7 +194,7 @@ string get_direction(pii p1, pii p2) {
     return "";
 }
 
-vector<string> generate_path_commands(const vector<pii>& path, map<int, set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
+vector<string> generate_path_commands(const vector<pii>& path, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
     vector<string> cmds;
     int L = path.size();
     if (L == 0) return cmds;
@@ -241,7 +249,7 @@ vector<string> generate_path_commands(const vector<pii>& path, map<int, set<int>
     return cmds;
 }
 
-vector<string> get_detour_commands(pii home, pii work, map<int, set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
+vector<string> get_detour_commands(pii home, pii work, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
     vector<pii> path = find_path(home, work, connections, dsu, built,sim);
     if (path.empty()) {
         return {};
@@ -258,7 +266,7 @@ multiset<pii> pep2points(const vector<Person>& pep) {
     return points;
 }
 
-vector<pii> get_group_members(atcoder::dsu& dsu, int x, const set<pii>& stations) {
+vector<pii> get_group_members(atcoder::dsu& dsu, int x, const unordered_set<pii, PairHash>& stations) {
     int leader_x = dsu.leader(x);
     vector<pii> result;
     for (const auto& station : stations) {
@@ -281,6 +289,20 @@ pii find_nearest_point(pii start, const vector<pii>& candidates) {
     }
     return nearest;
 }
+// べき乗重み (p=0.5: 平方根)
+double weight_power(int i, double p) {
+    return 1.0 / std::pow(i, p);
+}
+
+// 対数重み (c=2)
+double weight_log(int i, double c) {
+    return 1.0 / std::log(i + c);
+}
+
+// 指数重み (α=0.2)
+double weight_exp(int i, double alpha) {
+    return std::exp(-alpha * i);
+}
 int weighted_random(int n) {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -288,13 +310,18 @@ int weighted_random(int n) {
     // 逆数の重みを計算
     std::vector<double> weights(n);
     for (int i = 0; i < n; ++i) {
-        weights[i] = 1.0 / (i + 1);
+        // weights[i] = weight_power(i + 1, 5);
+        weights[i] = weight_exp(i + 1, 0.5);
+        // weights[i] = weight_log(i + 1, 2);
     }
 
     // 重みに基づいて乱数を生成
     std::discrete_distribution<int> dist(weights.begin(), weights.end());
 
     return dist(gen) ; // 1-indexed にする
+}
+double get_sequence_value(int i, int N=800) {
+    return 0.05 + (1.0 - (i / (N + static_cast<double>(i)))) * 0.95;
 }
 int main() {
     int M, K, T;
@@ -307,7 +334,7 @@ int main() {
         points_ini.insert(people[i].home);
         points_ini.insert(people[i].work);
     }
-
+    vector<ll>best_scores_t(800,-1e9);
     sort(people.begin(), people.end(), [&](const Person& a, const Person& b) {
         return -manhattan(a.home, a.work) < -manhattan(b.home, b.work);
     });
@@ -335,8 +362,8 @@ int main() {
         vector<vector<int>> built(N, vector<int>(N, 0));
 
         vector<string> output_commands;
-        map<int, set<int>> connections;
-        set<pii> stations;
+        map<int, unordered_set<int>> connections;
+        unordered_set<pii, PairHash> stations; // Use the custom hash
         atcoder::dsu dsu(N * N);
         for (int i = 0; i < N * N; ++i) {
             connections[i] = {i};
@@ -364,6 +391,11 @@ int main() {
                 while (output_commands_tmp.size() < T) {
                     output_commands_tmp.push_back("-1");
                 }
+                // if(funds_tmp<best_scores_t[turn]-20000){
+                //     turn=T;
+                //     break;
+                // }
+                chmax(best_scores_t[turn],funds_tmp);
                 best_score = funds_tmp;
                 best_trial = sim;
                 best_commands = output_commands_tmp;
@@ -397,7 +429,7 @@ int main() {
                         chmin(manhat2,manhattan(st,x.work));
                     }
                     int dist=dist_m;
-                    if(stations.size()>=5){
+                    if(stations.size()>=4){
                         chmin(dist,manhat1+manhat2);
                     }
                     int cost = dist * 100 + 10000 - station_exist * 5000;
@@ -422,7 +454,7 @@ int main() {
                     int rest_turns = connected_incomes == 0 ? 0 : max((int)ceil(((double)cost - funds) / connected_incomes), 0);
                     if (value < 0) {
                         int n = remaining_turns - max(dist_m, rest_turns);
-                        return (double)(dist_m + 1) * n / ((double)cost + 1);
+                        return (double)(dist_m + 1) * n / ((double)cost + 1)*200/(manhat1+manhat2);
                     } else {
                         return (double)-(dist_m + 1);
                     }
@@ -471,15 +503,29 @@ int main() {
                     if (!del_flag) new_pep_t.push_back(pep_t[i]);
                 }
                 pep_t = new_pep_t;
-
+                // if(sim%50==0 and turn==0){
+                //     sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
+                //         return manhattan(a.home, a.work) < manhattan(b.home, b.work);
+                //     });
+                // }else if(sim%70==0 and turn==0){
+                //     sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
+                //         return manhattan(a.home, a.work) > manhattan(b.home, b.work);
+                //     });
+                // }
+                // else{
                 sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
                     return sort_key(b) < sort_key(a);
                 });
-
+                // }
+   
                 int idx = 0;
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
                     // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
-                    idx = weighted_random(min((int)pep_t.size(), 20));
+                    // idx = weighted_random(min((int)pep_t.size(), 300));
+                    idx = weighted_random(min(max((int)(pep_t.size()*.1),10),(int)pep_t.size()));
+                    // if(sim%100==0){
+                    //     idx=rng()%pep_t.size();
+                    // }
                 }
 
                 if (idx < pep_t.size()) {
@@ -505,16 +551,13 @@ int main() {
 
                     if (!homes.empty() && !works.empty()) {
                         int min_dist = numeric_limits<int>::max();
+                        tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
                         for (auto home_station : homes) {
                             for (auto work_station : works) {
-                                int dist = manhattan(home_station, work_station);
-                                if (dist < min_dist) {
-                                    min_dist = dist;
-                                    home = home_station;
-                                    work = work_station;
-                                }
+                                best_pair_tmp = min(best_pair_tmp, {manhattan(home_station, work_station), home_station, work_station});
                             }
                         }
+                        tie(ignore, home, work) = best_pair_tmp;
                     } else if (!homes.empty()) {
                         home = find_nearest_point(work, homes);
                     } else if (!works.empty()) {
@@ -572,20 +615,20 @@ int main() {
                         if (built[home.first][home.second] == 7 && built[work.first][work.second] == 7) {
                             vector<pii> home_candidates = get_group_members(dsu, index(home), stations);
                             vector<pii> work_candidates = get_group_members(dsu, index(work), stations);
-                            tuple<int, pii, pii> best_pair = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
+                            tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
                             for (auto home_station : home_candidates) {
                                 for (auto work_station : work_candidates) {
-                                    best_pair = min(best_pair, {manhattan(home_station, work_station), home_station, work_station});
+                                    best_pair_tmp = min(best_pair_tmp, {manhattan(home_station, work_station), home_station, work_station});
                                 }
                             }
-                            tie(ignore, home, work) = best_pair;
+                            tie(ignore, home, work) = best_pair_tmp;
                         } else {
                             if (built[work.first][work.second] == 7) swap(home, work);
                             home = find_nearest_point(work, get_group_members(dsu, index(home), stations));
                         }
                     }
-                    cout<<"#trial:"<<sim<<" turn:"<<turn<<" home: ("<<home.first<<", "<<home.second<<") ";
-                    cout<<"work: ("<<work.first<<", "<<work.second<<")"<<endl;
+                    // cout<<"#trial:"<<sim<<" turn:"<<turn<<" home: ("<<home.first<<", "<<home.second<<") ";
+                    // cout<<"work: ("<<work.first<<", "<<work.second<<")"<<endl;
                     pending = get_detour_commands(home, work, connections, dsu, built,sim);
                 } else {
                     pending = {};
@@ -651,24 +694,13 @@ int main() {
             if (pending.empty() && current_person_income != 0) {
                 connected_incomes += current_person_income;
                 dsu.merge(index(home), index(work));
-                for (int i = 0; i < N * N; ++i) {
-                    connections[i].clear();
-                    connections[dsu.leader(i)].insert(i);
-                }
-                for (int i = 0; i < N * N; ++i) {
-                    connections[dsu.leader(i)].insert(i);
-                }
-                // for(auto station : stations){
-                //     int dx[4]={0,1,0,-1};
-                //     int dy[4]={1,0,-1,0};
-                //     for(int i=0;i<4;i++){
-                //         int nx = station.first + dx[i];
-                //         int ny = station.second + dy[i];
-                //         if(0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7){
-                //             dsu.merge(index(station), index({nx,ny}));
-                //         }
-                //     }
+                // for (int i = 0; i < N * N; ++i) {
+                //     connections[i].clear();
+                //     connections[i].insert(i);
                 // }
+                for (int i = 0; i < N * N; ++i) {
+                    connections[dsu.leader(i)].insert(i);
+                }
                 current_person_income = 0;
             }
             funds += connected_incomes;
@@ -680,7 +712,7 @@ int main() {
         }
         if (timeout) break;
     }
-    cout<<"# best_trial: "<<best_trial<<endl;
+    // cout<<"# best_trial: "<<best_trial<<endl;
     
     for (int i = 0; i < T; ++i) {
         cout << best_commands[i] << endl;
