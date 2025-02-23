@@ -28,8 +28,16 @@ template <class T> bool chmin(T &a, const T &b) { if (a > b) { a = b; return tru
 auto start_time = chrono::high_resolution_clock::now();
 const double TIME_LIMIT = 2.9; // Time limit in seconds
 int N;
-int COST_STATION;
-int COST_RAIL;
+
+const int COST_STATION = 5000;
+const int COST_RAIL = 100;
+
+vector<pii> moves = {
+    {0, 0},
+    {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+    {2, 0}, {-2, 0}, {0, 2}, {0, -2},
+    {1, 1}, {-1, -1}, {1, -1}, {-1, 1}
+};
 // Function to check if the time limit has been exceeded
 bool time_exceeded() {
     auto end_time = chrono::high_resolution_clock::now();
@@ -41,6 +49,7 @@ bool time_exceeded() {
 struct Person {
     pii home;
     pii work;
+    double sort_value;
 };
 
 int manhattan(pii home, pii work) {
@@ -90,8 +99,6 @@ vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& c
     priority_queue<tuple<double, pii>, vector<tuple<double, pii>>, greater<tuple<double, pii>>> pq;
     pq.push({0, start});
 
-    int dx[] = {-1, 1, 0, 0};
-    int dy[] = {0, 0, -1, 1};
 
     while (!pq.empty()) {
         double cost;
@@ -136,7 +143,7 @@ vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& c
                     // if(turn==0)
                     // cout<<"#visited station"<<" "<<nr<<" "<<nc<<" next_cost:"<<next_cost<<" dist:"<<dist[nr][nc]<<endl;
                 } else if (built[nr][nc] >=1 and built[nr][nc] <= 6) {
-                    int COST_USED_RAIL = 2000;
+                    int COST_USED_RAIL = 5000;
                     if(dir==(pii){-1,0} and (built[nr][nc]==2 or built[nr][nc]==3 or built[nr][nc]==6) and (built[curr.first][curr.second]==2 or built[curr.first][curr.second]==4 or built[curr.first][curr.second]==5 or built[curr.first][curr.second]==7)){
                         if(built[curr.first][curr.second]==7 or built[nr][nc]==7){
                             next_cost+=COST_STATION;
@@ -194,12 +201,12 @@ string get_direction(pii p1, pii p2) {
     return "";
 }
 
-vector<string> generate_path_commands(const vector<pii>& path, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
+vector<string> generate_path_commands(const vector<pii>& path, atcoder::dsu& dsu, vector<vector<int>>& built) {
     vector<string> cmds;
     int L = path.size();
     if (L == 0) return cmds;
     pii start = path[0];
-    pii goal = path.back();
+    // pii goal = path.back();
     pii r = path[0];
 
     if (built[r.first][r.second] != 7) {
@@ -254,7 +261,7 @@ vector<string> get_detour_commands(pii home, pii work, map<int, unordered_set<in
     if (path.empty()) {
         return {};
     }
-    return generate_path_commands(path, connections, dsu, built);
+    return generate_path_commands(path, dsu, built);
 }
 
 multiset<pii> pep2points(const vector<Person>& pep) {
@@ -320,9 +327,68 @@ int weighted_random(int n) {
 
     return dist(gen) ; // 1-indexed にする
 }
-double get_sequence_value(int i, int N=800) {
-    return 0.05 + (1.0 - (i / (N + static_cast<double>(i)))) * 0.95;
+
+// Personオブジェクトのソート値を計算する関数
+double calculate_sort_value(const Person& x, int turn, int T, long long funds, long long connected_incomes, 
+    atcoder::dsu& dsu, const vector<vector<int>>& built, const unordered_set<pii, PairHash>& stations) {
+
+    int dist_m = manhattan(x.home, x.work) ;
+    int station_exist = 0;
+
+    vector<pii> home_stations;
+    vector<pii> work_stations;
+    for (auto [dx, dy] : moves) {
+        int nx = x.home.first + dx, ny = x.home.second + dy;
+        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7) {
+            home_stations.push_back({nx, ny});
+        }
+    }
+    for (auto [dx, dy] : moves) {
+        int nx = x.work.first + dx, ny = x.work.second + dy;
+        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7) {
+            work_stations.push_back({nx, ny});
+        }
+    }
+    station_exist += !home_stations.empty();
+    station_exist += !work_stations.empty();
+
+    int manhat1 = 1e9, manhat2 = 1e9;
+    for (auto st : stations) {
+        chmin(manhat1, manhattan(st, x.home));
+        chmin(manhat2, manhattan(st, x.work));
+    }
+
+    int dist = dist_m-3;
+    if (stations.size() >= 2) {
+        chmin(dist, manhat1 + manhat2);
+    }
+
+    int cost = max(dist,0) * 100 + 10000 - station_exist * 5000;
+
+    for (auto home_station : home_stations) {
+        for (auto work_station : work_stations) {
+            int dist_t = max(manhattan(home_station, work_station),0);
+            chmin(cost, dist_t * 100 + 10000 - station_exist * 5000);
+            if (dsu.same(index(home_station), index(work_station))) {
+                return 0;
+            }
+        }
+    }
+
+    int remaining_turns = T - turn - 1;
+    double value = (double)cost - funds - connected_incomes * remaining_turns;
+    int rest_turns = connected_incomes == 0 ? 0 : max((int)ceil(((double)cost - funds) / connected_incomes), 0);
+
+    if (value < 0) {
+        int n = remaining_turns - max(dist_m, rest_turns);
+        return (double)(dist_m ) * n / ((double)cost + 1) * 200 / (manhat1 + manhat2);
+    } else {
+        return (double)-(dist_m );
+    }
 }
+
+
+
 int main() {
     int M, K, T;
     cin >> N >> M >> K >> T;
@@ -331,6 +397,7 @@ int main() {
     multiset<pii> points_ini;
     for (int i = 0; i < M; ++i) {
         cin >> people[i].home.first >> people[i].home.second >> people[i].work.first >> people[i].work.second;
+        people[i].sort_value = 0; // 初期化
         points_ini.insert(people[i].home);
         points_ini.insert(people[i].work);
     }
@@ -339,24 +406,15 @@ int main() {
         return -manhattan(a.home, a.work) < -manhattan(b.home, b.work);
     });
 
-    COST_STATION = 5000;
-    COST_RAIL = 100;
-
-    vector<pii> moves = {
-        {0, 0},
-        {1, 0}, {-1, 0}, {0, 1}, {0, -1},
-        {2, 0}, {-2, 0}, {0, 2}, {0, -2},
-        {1, 1}, {-1, -1}, {1, -1}, {-1, 1}
-    };
 
     long long best_score = -numeric_limits<long long>::max();
     vector<string> best_commands;
-    int best_trial=0;
+    // int best_trial=0;
     bool timeout = false;
 
     mt19937 rng(0); // Seed the random number generator
 
-    for (int sim = 0; sim < 1000; ++sim) {
+    for (int sim = 0; sim < 3000; ++sim) {
         long long funds = K;
         // 0: empty, 1-6: rail, 7: station
         vector<vector<int>> built(N, vector<int>(N, 0));
@@ -370,9 +428,12 @@ int main() {
         }
 
         vector<Person> pep_t = people;
-        sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b) {
-            return manhattan(a.home, a.work) < manhattan(b.home, b.work);
-        });
+
+         // ソート値の計算と格納
+        for (auto &p : pep_t) {
+            p.sort_value = 0; // 初期化
+        }
+
 
         vector<string> pending;
         int current_person_income = 0;
@@ -388,80 +449,22 @@ int main() {
             if (best_score < funds + connected_incomes * (T - turn - 1)) {
                 vector<string> output_commands_tmp = output_commands;
                 long long funds_tmp = funds + connected_incomes * (T - turn - 1);
-                while (output_commands_tmp.size() < T) {
+                while ((int)output_commands_tmp.size() < T) {
                     output_commands_tmp.push_back("-1");
                 }
-                // if(funds_tmp<best_scores_t[turn]-20000){
-                //     turn=T;
-                //     break;
-                // }
+                if(funds_tmp<best_scores_t[turn]-20000){
+                    turn=T;
+                    break;
+                }
                 chmax(best_scores_t[turn],funds_tmp);
                 best_score = funds_tmp;
-                best_trial = sim;
+                // best_trial = sim;
                 best_commands = output_commands_tmp;
             }
 
             if (pending.empty() && !pep_t.empty()) {
-
-                auto sort_key = [&](const Person& x) {
-                    int dist_m = manhattan(x.home, x.work) - 1;
-                    int station_exist = 0;
-
-                    vector<pii> home_stations;
-                    vector<pii> work_stations;
-                    for (auto [dx, dy] : moves) {
-                        int nx = x.home.first + dx, ny = x.home.second + dy;
-                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7) {
-                            home_stations.push_back({nx, ny});
-                        }
-                    }
-                    for (auto [dx, dy] : moves) {
-                        int nx = x.work.first + dx, ny = x.work.second + dy;
-                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7) {
-                            work_stations.push_back({nx, ny});
-                        }
-                    }
-                    station_exist += !home_stations.empty();
-                    station_exist += !work_stations.empty();
-                    int manhat1=1e9,manhat2=1e9;
-                    for(auto st:stations){
-                        chmin(manhat1,manhattan(st,x.home));
-                        chmin(manhat2,manhattan(st,x.work));
-                    }
-                    int dist=dist_m;
-                    if(stations.size()>=2){
-                        chmin(dist,manhat1+manhat2);
-                    }
-                    int cost = dist * 100 + 10000 - station_exist * 5000;
-
-                    for (auto home_station : home_stations) {
-                        bool exit_flag = false;
-                        for (auto work_station : work_stations) {
-                            int dist_t = manhattan(home_station, work_station) - 1;
-                            cost = min(cost, dist_t * 100 + 10000 - station_exist * 5000);
-                            if (dsu.same(index(home_station), index(work_station))) {
-                                cost = 0;
-                                exit_flag = true;
-                                break;
-                            }
-                        }
-                        if (exit_flag) break;
-                    }
-
-                    int remaining_turns = T - turn - 1;
-                    double value = (double)cost - funds - connected_incomes * remaining_turns;
-
-                    int rest_turns = connected_incomes == 0 ? 0 : max((int)ceil(((double)cost - funds) / connected_incomes), 0);
-                    if (value < 0) {
-                        int n = remaining_turns - max(dist_m, rest_turns);
-                        return (double)(dist_m + 1) * n / ((double)cost + 1)*200/(manhat1+manhat2);
-                    } else {
-                        return (double)-(dist_m + 1);
-                    }
-                };
-
                 vector<int> delete_ids;
-                for (int i = 0; i < pep_t.size(); ++i) {
+                for (int i = 0; i < (int)pep_t.size(); ++i) {
                     vector<pii> home_stations;
                     vector<pii> work_stations;
                     for (auto [dx, dy] : moves) {
@@ -492,7 +495,7 @@ int main() {
                     connected_incomes += manhattan(pep_t[i].home, pep_t[i].work);
                 }
                 vector<Person> new_pep_t;
-                for (int i = 0; i < pep_t.size(); ++i) {
+                for (int i = 0; i < (int)pep_t.size(); ++i) {
                     bool del_flag = false;
                     for (int id : delete_ids) {
                         if (i == id) {
@@ -503,183 +506,130 @@ int main() {
                     if (!del_flag) new_pep_t.push_back(pep_t[i]);
                 }
                 pep_t = new_pep_t;
-                // if(sim%50==0 and turn==0){
-                //     sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
-                //         return manhattan(a.home, a.work) < manhattan(b.home, b.work);
-                //     });
-                // }else if(sim%70==0 and turn==0){
-                //     sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
-                //         return manhattan(a.home, a.work) > manhattan(b.home, b.work);
-                //     });
-                // }
-                // else{
+                // pep_tの各Personに対してソート値を計算し、格納する
+                 for (auto& p : pep_t) {
+                    p.sort_value = calculate_sort_value(p, turn, T, funds, connected_incomes, dsu, built, stations);
+                }
+
+                // ソートの適用部分
                 sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
-                    return sort_key(b) < sort_key(a);
+                    return a.sort_value > b.sort_value;
                 });
-                // }
-   
+                int N_positive_person=0;
+                rep(i,pep_t.size()){
+                    if(pep_t[i].sort_value>0){
+                        N_positive_person++;
+                    }else{
+                        break;
+                    }
+                }
                 int idx = 0;
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
                     // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
-                    // idx = weighted_random(min((int)pep_t.size(), 300));
-                    idx = weighted_random(min(max((int)(pep_t.size()*.1),10),(int)pep_t.size()));
-                    // if(sim%100==0){
-                    //     idx=rng()%pep_t.size();
-                    // }
+                    idx = weighted_random(min((int)pep_t.size(), 20));
+                    // idx=weighted_random(min((int)(N_positive_person/2),(int)pep_t.size()));
                 }
 
-                if (idx < pep_t.size()) {
+                if (idx < (int)pep_t.size()) {
                     home = pep_t[idx].home;
                     work = pep_t[idx].work;
                     current_person_income = manhattan(home, work);
                     pep_t.erase(pep_t.begin() + idx);
-                    if(best_score>100000 or rng()/rng.max()<0.5 or K>12000){
-                        vector<pii> homes;
-                        vector<pii> works;
+
+                    vector<pii> homes;
+                    vector<pii> works;
+                    for (auto [dx, dy] : moves) {
+                        int nx = home.first + dx, ny = home.second + dy;
+                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
+                            homes.push_back({nx, ny});
+                        }
+                    }
+                    for (auto [dx, dy] : moves) {
+                        int nx = work.first + dx, ny = work.second + dy;
+                        if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
+                            works.push_back({nx, ny});
+                        }
+                    }
+
+                    if (!homes.empty() && !works.empty()) {
+                        // int min_dist = numeric_limits<int>::max();
+                        tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
+                        for (auto home_station : homes) {
+                            for (auto work_station : works) {
+                                best_pair_tmp = min(best_pair_tmp, {manhattan(home_station, work_station), home_station, work_station});
+                            }
+                        }
+                        tie(ignore, home, work) = best_pair_tmp;
+                    } else if (!homes.empty()) {
+                        home = find_nearest_point(work, homes);
+                    } else if (!works.empty()) {
+                        work = find_nearest_point(home, works);
+                    }
+
+                    multiset<pii> points = pep2points(pep_t);
+                    if (built[home.first][home.second] != 7) {
+                        int max_point_cnt = 0;
+                        pii max_home = {-1, -1};
                         for (auto [dx, dy] : moves) {
                             int nx = home.first + dx, ny = home.second + dy;
-                            if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
-                                homes.push_back({nx, ny});
+                            int point_cnt = 0;
+                            if (0 <= nx && nx < N && 0 <= ny && ny < N) {
+                                for (auto [dx2, dy2] : moves) {
+                                    int nx2 = nx + dx2, ny2 = ny + dy2;
+                                    if (points_ini.count({nx2, ny2})) {
+                                        point_cnt+=points_ini.count({nx2, ny2});
+                                        if (points.count({nx2, ny2})) point_cnt++;
+                                    }
+                                }
+                            }
+                            if (point_cnt > max_point_cnt) {
+                                max_point_cnt = point_cnt;
+                                max_home = {nx, ny};
                             }
                         }
+                        if (max_home.first != -1) home = max_home;
+                    }
+
+                    if (built[work.first][work.second] != 7) {
+                        int max_point_cnt = 0;
+                        pii max_work = {-1, -1};
                         for (auto [dx, dy] : moves) {
                             int nx = work.first + dx, ny = work.second + dy;
-                            if (0 <= nx && nx < N && 0 <= ny && ny < N && built[nx][ny] == 7 ) {
-                                works.push_back({nx, ny});
+                            int point_cnt = 0;
+                            if (0 <= nx && nx < N && 0 <= ny && ny < N) {
+                                for (auto [dx2, dy2] : moves) {
+                                    int nx2 = nx + dx2, ny2 = ny + dy2;
+                                    if (points_ini.count({nx2, ny2})) {
+                                        point_cnt++;
+                                        if (points.count({nx2, ny2})) point_cnt++;
+                                    }
+                                }
+                            }
+                            if (point_cnt > max_point_cnt) {
+                                max_point_cnt = point_cnt;
+                                max_work = {nx, ny};
                             }
                         }
+                        if (max_work.first != -1) work = max_work;
+                    }
 
-                        if (!homes.empty() && !works.empty()) {
-                            int min_dist = numeric_limits<int>::max();
+                    if (built[home.first][home.second] == 7 || built[work.first][work.second] == 7) {
+                        if (built[home.first][home.second] == 7 && built[work.first][work.second] == 7) {
+                            vector<pii> home_candidates = get_group_members(dsu, index(home), stations);
+                            vector<pii> work_candidates = get_group_members(dsu, index(work), stations);
                             tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
-                            for (auto home_station : homes) {
-                                for (auto work_station : works) {
+                            for (auto home_station : home_candidates) {
+                                for (auto work_station : work_candidates) {
                                     best_pair_tmp = min(best_pair_tmp, {manhattan(home_station, work_station), home_station, work_station});
                                 }
                             }
                             tie(ignore, home, work) = best_pair_tmp;
-                        } else if (!homes.empty()) {
-                            home = find_nearest_point(work, homes);
-                        } else if (!works.empty()) {
-                            work = find_nearest_point(home, works);
-                        }
-
-                        multiset<pii> points = pep2points(pep_t);
-                        if (built[home.first][home.second] != 7) {
-                            int max_point_cnt = 0;
-                            pii max_home = {-1, -1};
-                            for (auto [dx, dy] : moves) {
-                                int nx = home.first + dx, ny = home.second + dy;
-                                int point_cnt = 0;
-                                if (0 <= nx && nx < N && 0 <= ny && ny < N) {
-                                    for (auto [dx2, dy2] : moves) {
-                                        int nx2 = nx + dx2, ny2 = ny + dy2;
-                                        if (points_ini.count({nx2, ny2})) {
-                                            point_cnt+=points_ini.count({nx2, ny2});
-                                            if (points.count({nx2, ny2})) point_cnt++;
-                                        }
-                                    }
-                                }
-                                if (point_cnt > max_point_cnt) {
-                                    max_point_cnt = point_cnt;
-                                    max_home = {nx, ny};
-                                }
-                            }
-                            if (max_home.first != -1) home = max_home;
-                        }
-
-                        if (built[work.first][work.second] != 7) {
-                            int max_point_cnt = 0;
-                            pii max_work = {-1, -1};
-                            for (auto [dx, dy] : moves) {
-                                int nx = work.first + dx, ny = work.second + dy;
-                                int point_cnt = 0;
-                                if (0 <= nx && nx < N && 0 <= ny && ny < N) {
-                                    for (auto [dx2, dy2] : moves) {
-                                        int nx2 = nx + dx2, ny2 = ny + dy2;
-                                        if (points_ini.count({nx2, ny2})) {
-                                            point_cnt++;
-                                            if (points.count({nx2, ny2})) point_cnt++;
-                                        }
-                                    }
-                                }
-                                if (point_cnt > max_point_cnt) {
-                                    max_point_cnt = point_cnt;
-                                    max_work = {nx, ny};
-                                }
-                            }
-                            if (max_work.first != -1) work = max_work;
-                        }
-
-                        if (built[home.first][home.second] == 7 || built[work.first][work.second] == 7) {
-                            if (built[home.first][home.second] == 7 && built[work.first][work.second] == 7) {
-                                vector<pii> home_candidates = get_group_members(dsu, index(home), stations);
-                                vector<pii> work_candidates = get_group_members(dsu, index(work), stations);
-                                tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
-                                for (auto home_station : home_candidates) {
-                                    for (auto work_station : work_candidates) {
-                                        best_pair_tmp = min(best_pair_tmp, {manhattan(home_station, work_station), home_station, work_station});
-                                    }
-                                }
-                                tie(ignore, home, work) = best_pair_tmp;
-                            } else {
-                                if (built[work.first][work.second] == 7) swap(home, work);
-                                home = find_nearest_point(work, get_group_members(dsu, index(home), stations));
-                            }
-                        }
-                    // cout<<"#trial:"<<sim<<" turn:"<<turn<<" home: ("<<home.first<<", "<<home.second<<") ";
-                    // cout<<"work: ("<<work.first<<", "<<work.second<<")"<<endl;
-                    }else{
-                                            // 近くに既に駅が built されているか探す（home）
-                        for (auto &mv: moves) {
-                            int nx = home.first + mv.first;
-                            int ny = home.second + mv.second;
-                            if (nx >= 0 && nx < N && ny >= 0 && ny < N) {
-                                if (built[nx][ny] == 7) {
-                                    home = {nx, ny};
-                                    break;
-                                }
-                            }
-                        }
-                        // (work)
-                        for (auto &mv: moves) {
-                            int nx = work.first + mv.first;
-                            int ny = work.second + mv.second;
-                            if (nx >= 0 && nx < N && ny >= 0 && ny < N) {
-                                if ( built[nx][ny] == 7) {
-                                    work = {nx, ny};
-                                    break;
-                                }
-                            }
-                        }
-                        while (true) {
-                            if (built[home.first][home.second] == 1) break;
-                            uniform_int_distribution<int> move_dist(0, moves.size() - 1);
-                            auto mv = moves[move_dist(rng)];
-                            int nx = home.first + mv.first;
-                            int ny = home.second + mv.second;
-                            if (nx >= 0 && nx < N && ny >= 0 && ny < N) {
-                                home = {nx, ny};
-                                break;
-                            }
-                        }
-                        while (true) {
-                            if (built[work.first][work.second] == 1) break;
-                            uniform_int_distribution<int> move_dist(0, moves.size() - 1);
-                            auto mv = moves[move_dist(rng)];
-                            int nx = work.first + mv.first;
-                            int ny = work.second + mv.second;
-                            if (nx >= 0 && nx < N && ny >= 0 && ny < N) {
-                                work = {nx, ny};
-                                break;
-                            }
-                        }
-                        if (dsu.same(index(home), index(work))) {
-                            connected_incomes += current_person_income;
-                            current_person_income = 0;
-                            continue;
+                        } else {
+                            if (built[work.first][work.second] == 7) swap(home, work);
+                            home = find_nearest_point(work, get_group_members(dsu, index(home), stations));
                         }
                     }
+
                     pending = get_detour_commands(home, work, connections, dsu, built,sim);
                 } else {
                     pending = {};
@@ -711,9 +661,6 @@ int main() {
                     cost = COST_RAIL;
                 } else if (built[r][c] <=6) {
                     if(cmd_type[0]-'0'==built[r][c]){
-                        // cout<<"came here"<<endl;
-                        // cout<<cmd_type[0]<<endl;
-                        // cout<<built[r][c]<<endl;
                         cost = 0;
                         skip=true;
                     }else{
@@ -745,10 +692,6 @@ int main() {
             if (pending.empty() && current_person_income != 0) {
                 connected_incomes += current_person_income;
                 dsu.merge(index(home), index(work));
-                // for (int i = 0; i < N * N; ++i) {
-                //     connections[i].clear();
-                //     connections[i].insert(i);
-                // }
                 for (int i = 0; i < N * N; ++i) {
                     connections[dsu.leader(i)].insert(i);
                 }
@@ -759,11 +702,10 @@ int main() {
         if (funds > best_score) {
             best_score = funds;
             best_commands = output_commands;
-            best_trial = sim;
+            // best_trial = sim;
         }
         if (timeout) break;
     }
-    // cout<<"# best_trial: "<<best_trial<<endl;
     
     for (int i = 0; i < T; ++i) {
         cout << best_commands[i] << endl;
