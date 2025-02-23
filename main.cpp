@@ -84,7 +84,7 @@ struct PairHash {
     }
 };
 
-vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
+vector<pii> find_path(pii start, pii goal, const vector<vector<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
     if (start == goal) {
         return {start};
     }
@@ -203,7 +203,7 @@ string get_direction(pii p1, pii p2) {
     return "";
 }
 
-vector<string> generate_path_commands(const vector<pii>& path, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
+vector<string> generate_path_commands(const vector<pii>& path,vector<vector<int>> & connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
     vector<string> cmds;
     int L = path.size();
     if (L == 0) return cmds;
@@ -258,7 +258,7 @@ vector<string> generate_path_commands(const vector<pii>& path, map<int, unordere
     return cmds;
 }
 
-vector<string> get_detour_commands(pii home, pii work, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
+vector<string> get_detour_commands(pii home, pii work, vector<vector<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
     vector<pii> path = find_path(home, work, connections, dsu, built,sim);
     if (path.empty()) {
         return {};
@@ -416,17 +416,17 @@ int main() {
 
     mt19937 rng(0); // Seed the random number generator
 
-    for (int sim = 0; sim < 1000; ++sim) {
+    for (int sim = 0; sim < 5000; ++sim) {
         long long funds = K;
         // 0: empty, 1-6: rail, 7: station
         vector<vector<int>> built(N, vector<int>(N, 0));
 
         vector<string> output_commands;
-        map<int, unordered_set<int>> connections;
+        vector<vector<int>> connections(N*N);
         unordered_set<pii, PairHash> stations; // Use the custom hash
         atcoder::dsu dsu(N * N);
         for (int i = 0; i < N * N; ++i) {
-            connections[i] = {i};
+            connections[i].push_back(i);
         }
 
         vector<Person> pep_t = people;
@@ -523,6 +523,10 @@ int main() {
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
                     // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
                     idx = weighted_random(min((int)pep_t.size(), 20));
+                    if(sim-best_trial>=50){
+                        idx = weighted_random(min((int)pep_t.size(), 50));
+                        // idx = weighted_random(min((int)pep_t.size(), 20*(sim-best_trial)/20));
+                    }
                 }
 
                 if (idx < pep_t.size()) {
@@ -687,8 +691,12 @@ int main() {
             if (pending.empty() && current_person_income != 0) {
                 connected_incomes += current_person_income;
                 dsu.merge(index(home), index(work));
+                // connections=vector<vector<int>>(N*N);
+                rep(i,N*N){
+                    connections[i].clear();
+                }
                 for (int i = 0; i < N * N; ++i) {
-                    connections[dsu.leader(i)].insert(i);
+                    connections[dsu.leader(i)].push_back(i);
                 }
                 current_person_income = 0;
             }

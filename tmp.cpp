@@ -523,6 +523,7 @@ int main() {
                         break;
                     }
                 }
+                
                 int idx = 0;
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
                     // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
