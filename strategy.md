@@ -11,5 +11,5 @@
 - stationsはvectorでよくね
 - 場所の新規性も重要かもしれないね、sort keyで
 - なんで実行時間が遅くなるんだろうね <- coutしてただけだったわ
-- sort_keyが正の部分まででrandom.choiceするか
+- sort_keyが正の部分まででrandom.choiceするか <- あまり変わらないか悪化
 - distは取り方次第では4ぐらい改善するよね、distを短縮させる方に移動したなら、pointをあげる感じにしてもいいかもね

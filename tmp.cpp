@@ -84,7 +84,7 @@ struct PairHash {
     }
 };
 
-vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
+vector<pii> find_path(pii start, pii goal, const vector<vector<int>>& connections, atcoder::dsu& dsu, const vector<vector<int>>& built, int turn) {
     if (start == goal) {
         return {start};
     }
@@ -99,6 +99,8 @@ vector<pii> find_path(pii start, pii goal, const map<int, unordered_set<int>>& c
     priority_queue<tuple<double, pii>, vector<tuple<double, pii>>, greater<tuple<double, pii>>> pq;
     pq.push({0, start});
 
+    int dx[] = {-1, 1, 0, 0};
+    int dy[] = {0, 0, -1, 1};
 
     while (!pq.empty()) {
         double cost;
@@ -201,12 +203,12 @@ string get_direction(pii p1, pii p2) {
     return "";
 }
 
-vector<string> generate_path_commands(const vector<pii>& path, atcoder::dsu& dsu, vector<vector<int>>& built) {
+vector<string> generate_path_commands(const vector<pii>& path,vector<vector<int>> & connections, atcoder::dsu& dsu, vector<vector<int>>& built) {
     vector<string> cmds;
     int L = path.size();
     if (L == 0) return cmds;
     pii start = path[0];
-    // pii goal = path.back();
+    pii goal = path.back();
     pii r = path[0];
 
     if (built[r.first][r.second] != 7) {
@@ -256,12 +258,12 @@ vector<string> generate_path_commands(const vector<pii>& path, atcoder::dsu& dsu
     return cmds;
 }
 
-vector<string> get_detour_commands(pii home, pii work, map<int, unordered_set<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
+vector<string> get_detour_commands(pii home, pii work, vector<vector<int>>& connections, atcoder::dsu& dsu, vector<vector<int>>& built,int sim) {
     vector<pii> path = find_path(home, work, connections, dsu, built,sim);
     if (path.empty()) {
         return {};
     }
-    return generate_path_commands(path, dsu, built);
+    return generate_path_commands(path, connections, dsu, built);
 }
 
 multiset<pii> pep2points(const vector<Person>& pep) {
@@ -332,7 +334,7 @@ int weighted_random(int n) {
 double calculate_sort_value(const Person& x, int turn, int T, long long funds, long long connected_incomes, 
     atcoder::dsu& dsu, const vector<vector<int>>& built, const unordered_set<pii, PairHash>& stations) {
 
-    int dist_m = manhattan(x.home, x.work) ;
+    int dist_m = manhattan(x.home, x.work) - 1;
     int station_exist = 0;
 
     vector<pii> home_stations;
@@ -358,16 +360,16 @@ double calculate_sort_value(const Person& x, int turn, int T, long long funds, l
         chmin(manhat2, manhattan(st, x.work));
     }
 
-    int dist = dist_m-3;
+    int dist = dist_m;
     if (stations.size() >= 2) {
         chmin(dist, manhat1 + manhat2);
     }
 
-    int cost = max(dist,0) * 100 + 10000 - station_exist * 5000;
+    int cost = dist * 100 + 10000 - station_exist * 5000;
 
     for (auto home_station : home_stations) {
         for (auto work_station : work_stations) {
-            int dist_t = max(manhattan(home_station, work_station),0);
+            int dist_t = manhattan(home_station, work_station) - 1;
             chmin(cost, dist_t * 100 + 10000 - station_exist * 5000);
             if (dsu.same(index(home_station), index(work_station))) {
                 return 0;
@@ -381,9 +383,9 @@ double calculate_sort_value(const Person& x, int turn, int T, long long funds, l
 
     if (value < 0) {
         int n = remaining_turns - max(dist_m, rest_turns);
-        return (double)(dist_m ) * n / ((double)cost + 1) * 200 / (manhat1 + manhat2);
+        return (double)(dist_m + 1) * n / ((double)cost + 1) *pow(manhat1+manhat2,-.5);
     } else {
-        return (double)-(dist_m );
+        return (double)-(dist_m + 1);
     }
 }
 
@@ -409,22 +411,22 @@ int main() {
 
     long long best_score = -numeric_limits<long long>::max();
     vector<string> best_commands;
-    // int best_trial=0;
+    int best_trial=0;
     bool timeout = false;
 
     mt19937 rng(0); // Seed the random number generator
 
-    for (int sim = 0; sim < 3000; ++sim) {
+    for (int sim = 0; sim < 5000; ++sim) {
         long long funds = K;
         // 0: empty, 1-6: rail, 7: station
         vector<vector<int>> built(N, vector<int>(N, 0));
 
         vector<string> output_commands;
-        map<int, unordered_set<int>> connections;
+        vector<vector<int>> connections(N*N);
         unordered_set<pii, PairHash> stations; // Use the custom hash
         atcoder::dsu dsu(N * N);
         for (int i = 0; i < N * N; ++i) {
-            connections[i] = {i};
+            connections[i].push_back(i);
         }
 
         vector<Person> pep_t = people;
@@ -449,7 +451,7 @@ int main() {
             if (best_score < funds + connected_incomes * (T - turn - 1)) {
                 vector<string> output_commands_tmp = output_commands;
                 long long funds_tmp = funds + connected_incomes * (T - turn - 1);
-                while ((int)output_commands_tmp.size() < T) {
+                while (output_commands_tmp.size() < T) {
                     output_commands_tmp.push_back("-1");
                 }
                 if(funds_tmp<best_scores_t[turn]-20000){
@@ -458,13 +460,13 @@ int main() {
                 }
                 chmax(best_scores_t[turn],funds_tmp);
                 best_score = funds_tmp;
-                // best_trial = sim;
+                best_trial = sim;
                 best_commands = output_commands_tmp;
             }
 
             if (pending.empty() && !pep_t.empty()) {
                 vector<int> delete_ids;
-                for (int i = 0; i < (int)pep_t.size(); ++i) {
+                for (int i = 0; i < pep_t.size(); ++i) {
                     vector<pii> home_stations;
                     vector<pii> work_stations;
                     for (auto [dx, dy] : moves) {
@@ -495,7 +497,7 @@ int main() {
                     connected_incomes += manhattan(pep_t[i].home, pep_t[i].work);
                 }
                 vector<Person> new_pep_t;
-                for (int i = 0; i < (int)pep_t.size(); ++i) {
+                for (int i = 0; i < pep_t.size(); ++i) {
                     bool del_flag = false;
                     for (int id : delete_ids) {
                         if (i == id) {
@@ -513,25 +515,21 @@ int main() {
 
                 // ソートの適用部分
                 sort(pep_t.begin(), pep_t.end(), [&](const Person& a, const Person& b){
-                    return a.sort_value > b.sort_value;
+                    return b.sort_value < a.sort_value;
                 });
-                int N_positive_person=0;
-                rep(i,pep_t.size()){
-                    if(pep_t[i].sort_value>0){
-                        N_positive_person++;
-                    }else{
-                        break;
-                    }
-                }
-                
+
+
                 int idx = 0;
                 if ((double)rng() / rng.max() < 0.7 && pep_t.size() > 1) {
                     // idx = (int)((double)rng() / rng.max() * min((int)pep_t.size(), 30));
                     idx = weighted_random(min((int)pep_t.size(), 20));
-                    // idx=weighted_random(min((int)(N_positive_person/2),(int)pep_t.size()));
+                    if(sim-best_trial>=50){
+                        idx = weighted_random(min((int)pep_t.size(), 50));
+                        // idx = weighted_random(min((int)pep_t.size(), 20*(sim-best_trial)/20));
+                    }
                 }
 
-                if (idx < (int)pep_t.size()) {
+                if (idx < pep_t.size()) {
                     home = pep_t[idx].home;
                     work = pep_t[idx].work;
                     current_person_income = manhattan(home, work);
@@ -553,7 +551,7 @@ int main() {
                     }
 
                     if (!homes.empty() && !works.empty()) {
-                        // int min_dist = numeric_limits<int>::max();
+                        int min_dist = numeric_limits<int>::max();
                         tuple<int, pii, pii> best_pair_tmp = {numeric_limits<int>::max(), {-1, -1}, {-1, -1}};
                         for (auto home_station : homes) {
                             for (auto work_station : works) {
@@ -693,8 +691,12 @@ int main() {
             if (pending.empty() && current_person_income != 0) {
                 connected_incomes += current_person_income;
                 dsu.merge(index(home), index(work));
+                // connections=vector<vector<int>>(N*N);
+                rep(i,N*N){
+                    connections[i].clear();
+                }
                 for (int i = 0; i < N * N; ++i) {
-                    connections[dsu.leader(i)].insert(i);
+                    connections[dsu.leader(i)].push_back(i);
                 }
                 current_person_income = 0;
             }
@@ -703,7 +705,7 @@ int main() {
         if (funds > best_score) {
             best_score = funds;
             best_commands = output_commands;
-            // best_trial = sim;
+            best_trial = sim;
         }
         if (timeout) break;
     }

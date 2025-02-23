@@ -12,7 +12,8 @@ def run_pahcer():
 # 統計データを収集する関数
 def collect_scores():
     scores = []
-    for _ in range(10):  # 10回実行
+    for _ in range(5):  # 10回実行
+        print(f"Running pahcer... iteration {_+1}")
         output = run_pahcer()
         # 出力からスコアを抽出する処理（出力形式に応じて変更）
         # 例として、"Average Score: xxx"と"Average Relative Score: xxx"から数値を取得する

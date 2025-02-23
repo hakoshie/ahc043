@@ -319,7 +319,7 @@ int weighted_random(int n) {
     // 逆数の重みを計算
     std::vector<double> weights(n);
     for (int i = 0; i < n; ++i) {
-        weights[i] = weight_power(i + 1, 1.);
+        weights[i] = weight_power(i + 1, 1.2);
         // weights[i] = weight_exp(i + 1, 0.5);
         // weights[i] = weight_log(i + 1, 2);
     }
@@ -383,7 +383,7 @@ double calculate_sort_value(const Person& x, int turn, int T, long long funds, l
 
     if (value < 0) {
         int n = remaining_turns - max(dist_m, rest_turns);
-        return (double)(dist_m + 1) * n / ((double)cost + 1) * 200 / (manhat1 + manhat2);
+        return (double)(dist_m + 1) * n / ((double)cost + 1) *pow(manhat1+manhat2,-.5);
     } else {
         return (double)-(dist_m + 1);
     }
